@@ -2485,7 +2485,7 @@ class ReminderSystem:
                                 task_datetime = datetime.strptime(task_datetime_str, "%Y-%m-%d %H:%M")
                                 
                                 # Рассчитываем время за час до события
-                                reminder_time = task_datetime - timedelta(hours=1)
+                                reminder_time = task_datetime - timedelta(hours=4)
                                 
                                 # Если текущее время совпадает с временем напоминания (±2 минуты)
                                 if abs((now - reminder_time).total_seconds()) <= 120:
@@ -3553,3 +3553,4 @@ if __name__ == '__main__':
         # Останавливаем систему напоминаний
         reminder_system.stop()
         print("👋 Бот завершил работу")
+
