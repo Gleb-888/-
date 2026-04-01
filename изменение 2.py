@@ -10,8 +10,6 @@ import sys
 import time
 import threading
 import math
-import pytz
-from timezonefinder import TimezoneFinder
 
 # Токен бота (ЗАМЕНИТЕ НА СВОЙ!)
 TELEGRAM_TOKEN = "8597234549:AAFirP1l2-7DUlqXvLYDieBVuHXYf2pP7I4"
@@ -1233,7 +1231,7 @@ def decimal_to_binary(n):
 """
         }
         
-        # Маппинг ключевых слов на категории знаний (ИСПРАВЛЕНО)
+        # Маппинг ключевых слов на категории знаний
         self.keyword_mapping = {
             # Математика
             "квадратн": ("math_knowledge", "algebra", "quadratic_equations"),
@@ -1341,14 +1339,12 @@ def decimal_to_binary(n):
         }
     
     def get_knowledge(self, path_parts):
-        """Получение знания по пути (ИСПРАВЛЕНО)"""
+        """Получение знания по пути"""
         try:
             if len(path_parts) == 3:
-                # Для знаний с тремя уровнями (категория, подкатегория, тема)
                 category_dict = getattr(self, path_parts[0])
                 return category_dict[path_parts[1]][path_parts[2]]
             elif len(path_parts) == 2:
-                # Для знаний с двумя уровнями (категория, тема) - study_advice
                 category_dict = getattr(self, path_parts[0])
                 return category_dict[path_parts[1]]
             else:
@@ -1381,14 +1377,12 @@ def decimal_to_binary(n):
         
         question_lower = question.lower()
         
-        # Проверяем точное совпадение по ключевым словам (ИСПРАВЛЕНО)
         for keyword, path_parts in self.keyword_mapping.items():
             if keyword in question_lower:
                 knowledge = self.get_knowledge(path_parts)
                 if knowledge:
                     return f"🤖 *Тимми (ИИ помощник):*\n\n{knowledge}\n\n💡 *Есть еще вопросы? Просто спроси! Я знаю всё по учебе!*"
         
-        # Если не нашли точного совпадения, ищем по категориям
         if any(word in question_lower for word in ["математик", "алгебр", "геометр"]):
             return self.get_math_response(question)
         elif any(word in question_lower for word in ["русск", "орфограф", "пунктуац"]):
@@ -1404,7 +1398,6 @@ def decimal_to_binary(n):
         elif any(word in question_lower for word in ["как", "совет", "подготовк"]):
             return self.get_advice_response(question)
         
-        # Общий ответ для учебных вопросов
         return self.get_general_study_response()
     
     def get_math_response(self, question):
@@ -2272,165 +2265,6 @@ exam_db = ExamDatabase()
 # Создаем продвинутую локальную нейросеть
 ai_study_assistant = AdvancedLocalAI()
 
-# =================== АВТОМАТИЧЕСКОЕ ОПРЕДЕЛЕНИЕ ЧАСОВОГО ПОЯСА ===================
-
-class TimezoneDetector:
-    """Автоматическое определение часового пояса пользователя"""
-    
-    def __init__(self):
-        self.tf = TimezoneFinder()
-        self.user_timezones = {}  # Кэш часовых поясов пользователей
-        
-        # База часовых поясов по языкам
-        self.language_timezone_map = {
-            "ru": {"offset": 3, "name": "Europe/Moscow", "region": "Москва (UTC+3)"},
-            "ua": {"offset": 2, "name": "Europe/Kiev", "region": "Киев (UTC+2)"},
-            "uk": {"offset": 2, "name": "Europe/Kiev", "region": "Киев (UTC+2)"},
-            "be": {"offset": 3, "name": "Europe/Minsk", "region": "Минск (UTC+3)"},
-            "kz": {"offset": 5, "name": "Asia/Almaty", "region": "Астана (UTC+5)"},
-            "uz": {"offset": 5, "name": "Asia/Tashkent", "region": "Ташкент (UTC+5)"},
-            "kg": {"offset": 6, "name": "Asia/Bishkek", "region": "Бишкек (UTC+6)"},
-            "tj": {"offset": 5, "name": "Asia/Dushanbe", "region": "Душанбе (UTC+5)"},
-            "tm": {"offset": 5, "name": "Asia/Ashgabat", "region": "Ашхабад (UTC+5)"},
-            "ge": {"offset": 4, "name": "Asia/Tbilisi", "region": "Тбилиси (UTC+4)"},
-            "am": {"offset": 4, "name": "Asia/Yerevan", "region": "Ереван (UTC+4)"},
-            "az": {"offset": 4, "name": "Asia/Baku", "region": "Баку (UTC+4)"},
-            "md": {"offset": 2, "name": "Europe/Chisinau", "region": "Кишинев (UTC+2)"},
-            "lt": {"offset": 2, "name": "Europe/Vilnius", "region": "Вильнюс (UTC+2)"},
-            "lv": {"offset": 2, "name": "Europe/Riga", "region": "Рига (UTC+2)"},
-            "ee": {"offset": 2, "name": "Europe/Tallinn", "region": "Таллин (UTC+2)"},
-            "pl": {"offset": 1, "name": "Europe/Warsaw", "region": "Варшава (UTC+1)"},
-            "de": {"offset": 1, "name": "Europe/Berlin", "region": "Берлин (UTC+1)"},
-            "fr": {"offset": 1, "name": "Europe/Paris", "region": "Париж (UTC+1)"},
-            "it": {"offset": 1, "name": "Europe/Rome", "region": "Рим (UTC+1)"},
-            "es": {"offset": 1, "name": "Europe/Madrid", "region": "Мадрид (UTC+1)"},
-            "pt": {"offset": 0, "name": "Europe/Lisbon", "region": "Лиссабон (UTC+0)"},
-            "gb": {"offset": 0, "name": "Europe/London", "region": "Лондон (UTC+0)"},
-            "us": {"offset": -5, "name": "America/New_York", "region": "Нью-Йорк (UTC-5)"},
-            "ca": {"offset": -5, "name": "America/Toronto", "region": "Торонто (UTC-5)"},
-            "au": {"offset": 10, "name": "Australia/Sydney", "region": "Сидней (UTC+10)"},
-            "nz": {"offset": 12, "name": "Pacific/Auckland", "region": "Окленд (UTC+12)"},
-            "jp": {"offset": 9, "name": "Asia/Tokyo", "region": "Токио (UTC+9)"},
-            "cn": {"offset": 8, "name": "Asia/Shanghai", "region": "Пекин (UTC+8)"},
-            "kr": {"offset": 9, "name": "Asia/Seoul", "region": "Сеул (UTC+9)"},
-            "in": {"offset": 5.5, "name": "Asia/Kolkata", "region": "Калькутта (UTC+5:30)"},
-            "tr": {"offset": 3, "name": "Europe/Istanbul", "region": "Стамбул (UTC+3)"},
-            "eg": {"offset": 2, "name": "Africa/Cairo", "region": "Каир (UTC+2)"},
-            "za": {"offset": 2, "name": "Africa/Johannesburg", "region": "Йоханнесбург (UTC+2)"},
-            "br": {"offset": -3, "name": "America/Sao_Paulo", "region": "Сан-Паулу (UTC-3)"},
-            "mx": {"offset": -6, "name": "America/Mexico_City", "region": "Мехико (UTC-6)"}
-        }
-    
-    def detect_by_ip(self):
-        """Определение часового пояса по IP-адресу"""
-        try:
-            response = requests.get('https://ipapi.co/timezone/', timeout=5)
-            if response.status_code == 200:
-                timezone_str = response.text.strip()
-                offset = self._get_offset_from_timezone(timezone_str)
-                if offset is not None:
-                    return {"offset": offset, "name": timezone_str, "method": "IP-адрес"}
-            
-            response = requests.get('http://worldtimeapi.org/api/ip', timeout=5)
-            if response.status_code == 200:
-                data = response.json()
-                if 'utc_offset' in data and 'timezone' in data:
-                    offset_str = data['utc_offset']
-                    offset = int(offset_str[1:3]) if offset_str[0] == '+' else -int(offset_str[1:3])
-                    return {"offset": offset, "name": data['timezone'], "method": "IP-адрес"}
-        except Exception as e:
-            print(f"⚠️ Ошибка определения часового пояса по IP: {e}")
-        return None
-    
-    def detect_by_coordinates(self, latitude, longitude):
-        """Определение часового пояса по координатам"""
-        try:
-            timezone_str = self.tf.timezone_at(lat=latitude, lng=longitude)
-            if timezone_str:
-                offset = self._get_offset_from_timezone(timezone_str)
-                if offset is not None:
-                    return {"offset": offset, "name": timezone_str, "method": "Геолокация"}
-        except Exception as e:
-            print(f"⚠️ Ошибка определения часового пояса по координатам: {e}")
-        return None
-    
-    def detect_by_language(self, language_code):
-        """Определение часового пояса по языку пользователя"""
-        if language_code in self.language_timezone_map:
-            data = self.language_timezone_map[language_code]
-            return {
-                "offset": data["offset"],
-                "name": data["name"],
-                "method": f"Язык ({language_code})",
-                "region": data["region"]
-            }
-        
-        lang_prefix = language_code[:2] if language_code else None
-        if lang_prefix in self.language_timezone_map:
-            data = self.language_timezone_map[lang_prefix]
-            return {
-                "offset": data["offset"],
-                "name": data["name"],
-                "method": f"Язык ({lang_prefix})",
-                "region": data["region"]
-            }
-        
-        return None
-    
-    def _get_offset_from_timezone(self, timezone_str):
-        """Получение смещения часового пояса от UTC"""
-        try:
-            tz = pytz.timezone(timezone_str)
-            now = datetime.now(pytz.UTC)
-            offset = tz.utcoffset(now)
-            if offset:
-                return int(offset.total_seconds() / 3600)
-        except Exception as e:
-            print(f"⚠️ Ошибка получения смещения для {timezone_str}: {e}")
-        return None
-    
-    def auto_detect(self, user_id, language_code=None, latitude=None, longitude=None):
-        """Автоматическое определение часового пояса"""
-        
-        # Метод 1: По координатам
-        if latitude and longitude:
-            result = self.detect_by_coordinates(latitude, longitude)
-            if result:
-                self.user_timezones[user_id] = result
-                return result
-        
-        # Метод 2: По IP-адресу
-        result = self.detect_by_ip()
-        if result:
-            self.user_timezones[user_id] = result
-            return result
-        
-        # Метод 3: По языку
-        if language_code:
-            result = self.detect_by_language(language_code)
-            if result:
-                self.user_timezones[user_id] = result
-                return result
-        
-        # Метод 4: По умолчанию (Москва, UTC+3)
-        default_result = {"offset": 3, "name": "Europe/Moscow", "method": "По умолчанию", "region": "Москва (UTC+3)"}
-        self.user_timezones[user_id] = default_result
-        return default_result
-    
-    def get_user_timezone(self, user_id):
-        """Получение сохраненного часового пояса пользователя"""
-        return self.user_timezones.get(user_id)
-    
-    def get_user_time(self, user_id):
-        """Получение текущего времени пользователя"""
-        tz_info = self.get_user_timezone(user_id)
-        if tz_info:
-            return datetime.now() + timedelta(hours=tz_info["offset"])
-        return datetime.now() + timedelta(hours=3)  # UTC+3 по умолчанию
-
-# Создаем детектор часовых поясов
-timezone_detector = TimezoneDetector()
-
 # =================== МЕНЕДЖЕР ЗАДАЧ ===================
 
 class TaskManager:
@@ -2497,16 +2331,13 @@ class TaskManager:
     
     def get_tasks_for_today(self, user_id: int):
         """Получение задач на сегодня"""
-        # Получаем время пользователя
-        user_time = timezone_detector.get_user_time(user_id)
-        today = user_time.strftime("%Y-%m-%d")
+        today = datetime.now().strftime("%Y-%m-%d")
         user_tasks = self.tasks.get(str(user_id), [])
         return [task for task in user_tasks if task["date"] == today]
     
     def get_tasks_for_week(self, user_id: int):
         """Получение задач на неделю"""
-        user_time = timezone_detector.get_user_time(user_id)
-        today = user_time
+        today = datetime.now()
         week_end = today + timedelta(days=7)
         
         user_tasks = self.tasks.get(str(user_id), [])
@@ -2515,7 +2346,7 @@ class TaskManager:
         for task in user_tasks:
             try:
                 task_date = datetime.strptime(task["date"], "%Y-%m-%d")
-                if today.date() <= task_date.date() <= week_end.date():
+                if today <= task_date <= week_end:
                     tasks_for_week.append(task)
             except:
                 continue
@@ -2546,7 +2377,6 @@ class TaskManager:
         if str(user_id) not in self.tasks:
             return False
         
-        # Ищем задачу
         task_found = False
         task_completed = False
         for i, task in enumerate(self.tasks[str(user_id)]):
@@ -2557,10 +2387,8 @@ class TaskManager:
                 break
         
         if task_found:
-            # Обновляем статистику
             if str(user_id) in self.stats:
                 self.stats[str(user_id)]["total_tasks"] = len(self.tasks[str(user_id)])
-                # Если задача была выполнена, уменьшаем счетчик выполненных
                 if task_completed:
                     self.stats[str(user_id)]["completed_tasks"] = max(0, self.stats[str(user_id)]["completed_tasks"] - 1)
             
@@ -2581,12 +2409,10 @@ class TaskManager:
         today_tasks = self.get_tasks_for_today(user_id)
         week_tasks = self.get_tasks_for_week(user_id)
         
-        # Рассчитываем дополнительную статистику
         total_tasks = len(user_tasks)
         completed_tasks = len([t for t in user_tasks if t.get("completed", False)])
         completion_rate = (completed_tasks / total_tasks * 100) if total_tasks > 0 else 0
         
-        # Определяем уровень продуктивности
         if completion_rate >= 80:
             productivity_level = "🏆 Отличная продуктивность!"
         elif completion_rate >= 60:
@@ -2613,7 +2439,7 @@ task_manager = TaskManager()
 # Хранилище для временных данных пользователей
 user_states = {}
 
-# =================== ИСПРАВЛЕННАЯ СИСТЕМА НАПОМИНАНИЙ (ЗА 1 ЧАС ДО СОБЫТИЯ) ===================
+# =================== СИСТЕМА НАПОМИНАНИЙ ===================
 
 class ReminderSystem:
     def __init__(self, bot, task_manager):
@@ -2626,21 +2452,20 @@ class ReminderSystem:
         self.running = True
         reminder_thread = threading.Thread(target=self.check_reminders, daemon=True)
         reminder_thread.start()
-        print("🔔 Система напоминаний запущена (напоминания за 1 час до события в местном времени пользователя)")
+        print("🔔 Система напоминаний запущена (напоминания за 1 час до события)")
     
     def check_reminders(self):
-        """Проверка напоминаний с учетом часовых поясов пользователей"""
+        """Проверка напоминаний"""
         while self.running:
             try:
+                now = datetime.now()
+                current_date_str = now.strftime("%Y-%m-%d")
+                current_hour = now.hour
+                current_minute = now.minute
+                
                 # Проверяем задачи всех пользователей
                 for user_id_str, tasks in task_manager.tasks.items():
                     user_id = int(user_id_str)
-                    
-                    # Получаем текущее время пользователя
-                    user_time = timezone_detector.get_user_time(user_id)
-                    current_date_str = user_time.strftime("%Y-%m-%d")
-                    current_hour = user_time.hour
-                    current_minute = user_time.minute
                     
                     for task in tasks:
                         # Проверяем только активные задачи с временем
@@ -2661,7 +2486,11 @@ class ReminderSystem:
                                 if (reminder_hour == current_hour and 
                                     abs(reminder_min - current_minute) <= 1):
                                     
-                                    # Отправляем напоминание
+                                    # Конвертируем время события в Unix timestamp для отображения в местном времени пользователя
+                                    event_datetime = datetime.strptime(f"{task['date']} {task_time}", "%Y-%m-%d %H:%M")
+                                    event_timestamp = int(event_datetime.timestamp())
+                                    
+                                    # Отправляем напоминание с использованием tg-time тега
                                     reminder_text = f"""
 ⏰ *НАПОМИНАНИЕ!*
 
@@ -2669,8 +2498,7 @@ class ReminderSystem:
 📝 *{task['text']}*
 
 📍 *Детали:*
-• Дата: {task['date']}
-• Время: {task_time}
+• Время: <tg-time unix="{event_timestamp}" format="wDT"></tg-time>
 • Предмет: {task.get('subject', 'Не указан')}
 
 🎯 *Подготовься заранее!*
@@ -2678,8 +2506,8 @@ class ReminderSystem:
 """
                                     
                                     try:
-                                        self.bot.send_message(user_id, reminder_text, parse_mode='Markdown')
-                                        print(f"📨 [{user_time.strftime('%H:%M')}] Отправлено напоминание пользователю {user_id} о задаче '{task['text'][:20]}...' (событие в {task_time})")
+                                        self.bot.send_message(user_id, reminder_text, parse_mode='HTML')
+                                        print(f"📨 Отправлено напоминание пользователю {user_id} о задаче '{task['text'][:20]}...' (событие в {task_time})")
                                         
                                         # Помечаем, что напоминание отправлено
                                         task["reminder_sent"] = True
@@ -2709,50 +2537,15 @@ reminder_system = ReminderSystem(bot, task_manager)
 
 @bot.message_handler(commands=['start', 'help'])
 def start(message):
-    """Главное меню с автоматическим определением часового пояса"""
+    """Главное меню"""
     user = message.from_user
-    user_id = message.chat.id
-    
-    # АВТОМАТИЧЕСКОЕ ОПРЕДЕЛЕНИЕ ЧАСОВОГО ПОЯСА
-    tz_info = timezone_detector.get_user_timezone(user_id)
-    
-    if not tz_info:
-        # Пытаемся определить автоматически
-        tz_info = timezone_detector.auto_detect(
-            user_id,
-            language_code=user.language_code
-        )
-        
-        # Отправляем уведомление
-        user_time = timezone_detector.get_user_time(user_id)
-        timezone_text = f"""
-🌍 *Часовой пояс определен автоматически!*
-
-📍 *Метод определения:* {tz_info['method']}
-🕐 *Ваше время:* {user_time.strftime('%H:%M:%S')}
-📅 *Ваша дата:* {user_time.strftime('%d.%m.%Y')}
-🌐 *Часовой пояс:* UTC{tz_info['offset']:+d} ({tz_info.get('region', tz_info['name'])})
-
-✅ Теперь напоминания будут приходить за 1 час до события в вашем местном времени!
-
-💡 *Для более точного определения* используйте кнопку "📍 Отправить геолокацию"
-"""
-        bot.send_message(user_id, timezone_text, parse_mode='Markdown')
-    
-    # Получаем текущее время пользователя
-    user_time = timezone_detector.get_user_time(user_id)
-    tz_info = timezone_detector.get_user_timezone(user_id)
-    offset = tz_info["offset"] if tz_info else 3
     
     welcome_text = f"""
 👋 *Привет, {user.first_name}! Я Тимми – твой помощник по тайм-менеджменту!*
 
-🕐 *Ваше местное время:* {user_time.strftime('%H:%M:%S')}
-🌍 *Ваш часовой пояс:* UTC{offset:+d}
-
 ✨ *Я умею:*
 ✅ Добавлять и напоминать о задачах (за 1 час до события!)
-✅ Автоматически определять ваш часовой пояс из любой точки мира
+✅ Telegram автоматически покажет время в вашем часовом поясе
 ✅ Помогать с подготовкой к ЕГЭ/ОГЭ по всем предметам (актуально на 2026 год!)
 ✅ Делиться лайфхаками и советами по учебе
 ✅ Отвечать на вопросы об учебе через продвинутого ИИ помощника (огромная база знаний!)
@@ -2770,91 +2563,12 @@ def start(message):
         "💡 Лайфхаки и советы",
         "🤖 ИИ помощник (Тимми)",
         "📊 Статистика и прогресс",
-        "📍 Отправить геолокацию",
         "⚙️ Главное меню"
     ]
     keyboard.add(*buttons)
     
     bot.send_message(message.chat.id, welcome_text, 
                      parse_mode='Markdown', reply_markup=keyboard)
-
-# =================== ОПРЕДЕЛЕНИЕ ЧАСОВОГО ПОЯСА ПО ГЕОЛОКАЦИИ ===================
-
-@bot.message_handler(func=lambda message: message.text == "📍 Отправить геолокацию")
-def request_location(message):
-    """Запрос геолокации для точного определения часового пояса"""
-    keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=1)
-    button = types.KeyboardButton(text="📍 Отправить местоположение", request_location=True)
-    keyboard.add(button)
-    
-    text = """
-📍 *Уточнение часового пояса*
-
-Для более точного определения вашего часового пояса, пожалуйста, отправьте ваше местоположение.
-
-🌍 *Это поможет:*
-• Точно определить ваш часовой пояс
-• Настроить напоминания в вашем местном времени
-• Учитывать переход на летнее/зимнее время
-
-🔒 *Ваша геолокация используется только для определения часового пояса и не передается третьим лицам!*
-
-Нажмите на кнопку ниже, чтобы отправить местоположение:
-"""
-    
-    bot.send_message(message.chat.id, text, parse_mode='Markdown', reply_markup=keyboard)
-
-@bot.message_handler(content_types=['location'])
-def handle_location(message):
-    """Обработка геолокации для определения часового пояса"""
-    user_id = message.chat.id
-    latitude = message.location.latitude
-    longitude = message.location.longitude
-    
-    # Определяем часовой пояс по координатам
-    tz_info = timezone_detector.detect_by_coordinates(latitude, longitude)
-    
-    if tz_info:
-        # Сохраняем часовой пояс
-        timezone_detector.user_timezones[user_id] = tz_info
-        
-        user_time = timezone_detector.get_user_time(user_id)
-        
-        text = f"""
-✅ *Часовой пояс успешно определен!*
-
-📍 *Ваши координаты:* {latitude:.4f}, {longitude:.4f}
-🌍 *Ваш часовой пояс:* {tz_info['name']}
-🕐 *Смещение от UTC:* {tz_info['offset']:+d}
-🕐 *Ваше местное время:* {user_time.strftime('%H:%M:%S')}
-📅 *Ваша дата:* {user_time.strftime('%d.%m.%Y')}
-
-✅ Теперь все напоминания будут приходить за 1 час до события в вашем местном времени!
-"""
-    else:
-        text = """
-❌ *Не удалось определить часовой пояс по вашей геолокации*
-
-Пожалуйста, попробуйте:
-1. Отправить геолокацию еще раз
-2. Использовать кнопку "🌍 Настроить часовой пояс" для ручной настройки
-"""
-    
-    # Возвращаем обычную клавиатуру
-    keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
-    buttons = [
-        "➕ Добавить задачу",
-        "📋 Мои задачи", 
-        "📚 Подготовка к ЕГЭ/ОГЭ",
-        "💡 Лайфхаки и советы",
-        "🤖 ИИ помощник (Тимми)",
-        "📊 Статистика и прогресс",
-        "📍 Отправить геолокацию",
-        "⚙️ Главное меню"
-    ]
-    keyboard.add(*buttons)
-    
-    bot.send_message(user_id, text, parse_mode='Markdown', reply_markup=keyboard)
 
 # =================== ДОБАВЛЕНИЕ ЗАДАЧ ===================
 
@@ -2870,7 +2584,7 @@ def add_task_start(message):
                           "• Сделать домашку по русскому\n"
                           "• Повторить формулы по физике перед контрольной\n"
                           "• Подготовиться к пробнику ЕГЭ 15 мая в 10:00\n\n"
-                          "⏰ *Напоминание:* Я пришлю уведомление за 1 час до события в вашем местном времени!",
+                          "⏰ *Напоминание:* Я пришлю уведомление за 1 час до события! Telegram покажет время в вашем часовом поясе.",
                           parse_mode='Markdown')
     
     bot.register_next_step_handler(msg, process_task_text)
@@ -2889,9 +2603,8 @@ def process_task_text(message):
     # Создаем inline-клавиатуру для выбора даты
     keyboard = types.InlineKeyboardMarkup(row_width=2)
     
-    # Добавляем кнопки на сегодня, завтра и послезавтра (в местном времени пользователя)
-    user_time = timezone_detector.get_user_time(user_id)
-    today = user_time
+    # Добавляем кнопки на сегодня, завтра и послезавтра
+    today = datetime.now()
     tomorrow = today + timedelta(days=1)
     day_after = today + timedelta(days=2)
     
@@ -2909,24 +2622,24 @@ def process_task_text(message):
     
     bot.send_message(user_id, 
                      "📅 *Выбери срок выполнения задачи:*\n\n"
-                     "💡 *Совет:* Выбери дату, чтобы я мог напомнить тебе за 1 час до события в твоем местном времени!",
+                     "💡 *Совет:* Выбери дату, чтобы я мог напомнить тебе за 1 час до события!",
                      parse_mode='Markdown',
                      reply_markup=keyboard)
 
 def process_task_date(user_id, date_type):
     """Обработка выбора даты"""
-    user_time = timezone_detector.get_user_time(user_id)
+    today = datetime.now()
     
     if date_type == "today":
-        task_date = user_time.strftime("%Y-%m-%d")
+        task_date = today.strftime("%Y-%m-%d")
     elif date_type == "tomorrow":
-        task_date = (user_time + timedelta(days=1)).strftime("%Y-%m-%d")
+        task_date = (today + timedelta(days=1)).strftime("%Y-%m-%d")
     elif date_type == "day_after":
-        task_date = (user_time + timedelta(days=2)).strftime("%Y-%m-%d")
+        task_date = (today + timedelta(days=2)).strftime("%Y-%m-%d")
     elif date_type == "week":
-        task_date = (user_time + timedelta(days=7)).strftime("%Y-%m-%d")
+        task_date = (today + timedelta(days=7)).strftime("%Y-%m-%d")
     else:
-        task_date = user_time.strftime("%Y-%m-%d")
+        task_date = today.strftime("%Y-%m-%d")
     
     if user_id in user_states and 'task_text' in user_states[user_id]:
         task_text = user_states[user_id]['task_text']
@@ -2945,7 +2658,6 @@ def process_task_date(user_id, date_type):
             if match:
                 time_match = match.group(1)
                 if ':' not in time_match and '.' not in time_match:
-                    # Если время указано просто цифрой (например "в 19")
                     time_match = time_match + ':00'
                 else:
                     time_match = time_match.replace('.', ':')
@@ -2957,12 +2669,10 @@ def process_task_date(user_id, date_type):
             user_states[user_id]['state'] = 'waiting_task_time'
             
             keyboard = types.InlineKeyboardMarkup(row_width=3)
-            # Добавляем кнопки с популярным временем
             times = ["09:00", "10:00", "11:00", "12:00", "13:00", "14:00", 
                     "15:00", "16:00", "17:00", "18:00", "19:00", "20:00"]
             buttons = [types.InlineKeyboardButton(time, callback_data=f"time_{time}") for time in times]
             
-            # Добавляем кнопки построчно
             for i in range(0, len(buttons), 3):
                 keyboard.add(*buttons[i:i+3])
             
@@ -2971,8 +2681,7 @@ def process_task_date(user_id, date_type):
             bot.send_message(user_id,
                             "🕐 *Укажи время выполнения задачи:*\n\n"
                             "Выбери из предложенных или напиши время в формате ЧЧ:ММ\n"
-                            "Например: 14:30\n\n"
-                            "💡 *Время указывается в вашем местном часовом поясе!*",
+                            "Например: 14:30",
                             parse_mode='Markdown',
                             reply_markup=keyboard)
             return None
@@ -3016,15 +2725,26 @@ def process_task_date(user_id, date_type):
         time_info = f" в {time_match}" if time_match else ""
         subject_info = f" ({subject})" if subject else ""
         
+        # Создаем timestamp для отображения времени
+        event_timestamp = None
+        if time_match:
+            event_datetime = datetime.strptime(f"{task_date} {time_match}", "%Y-%m-%d %H:%M")
+            event_timestamp = int(event_datetime.timestamp())
+        
+        if event_timestamp:
+            time_display = f'<tg-time unix="{event_timestamp}" format="wDT"></tg-time>'
+        else:
+            time_display = task_date
+        
         response = f"""
 ✅ *Задача успешно добавлена!*
 
 📝 *Задача:* {task_text}{subject_info}
-📅 *Дата:* {task_date}{time_info}
+📅 *Дата/время:* {time_display}
 🆔 *ID задачи:* {task['id']}
 
 ⏰ *Напоминание:* 
-За 1 час до начала я пришлю тебе уведомление в твоем местном времени! 🔔
+За 1 час до начала я пришлю тебе уведомление! Telegram покажет точное время в твоем часовом поясе. 🔔
 
 💡 *Совет:* Используй технику Помодоро для выполнения задачи!
 🎯 *Статистика:* Всего задач: {len(task_manager.tasks.get(str(user_id), []))}
@@ -3180,7 +2900,6 @@ def show_exam_preparation(message):
 
 def show_exam_info(subject_key):
     """Показать информацию по предмету"""
-    # Создаем клавиатуру для выбора типа экзамена
     keyboard = types.InlineKeyboardMarkup(row_width=2)
     keyboard.add(
         types.InlineKeyboardButton("📝 ЕГЭ 2026", callback_data=f"ege_{subject_key}"),
@@ -3298,13 +3017,12 @@ def process_ai_question(message):
     
     # Показываем "печатает..."
     bot.send_chat_action(user_id, 'typing')
-    time.sleep(0.5)  # Небольшая задержка для эффекта "думает"
+    time.sleep(0.5)
     
     # Получаем ответ от продвинутого локального ИИ помощника
     answer = ai_study_assistant.get_answer(question)
     
     if answer:
-        # Если ответ слишком длинный, разбиваем на части
         if len(answer) > 4000:
             parts = [answer[i:i+4000] for i in range(0, len(answer), 4000)]
             for part in parts:
@@ -3312,7 +3030,6 @@ def process_ai_question(message):
         else:
             bot.send_message(user_id, answer, parse_mode='Markdown')
     else:
-        # Если вопрос не учебный, но может быть связан с тайм-менеджментом
         if any(word in question.lower() for word in ["время", "план", "организовать", "успеть", "расписание"]):
             response = f"""
 🤔 *Вопрос по тайм-менеджменту?*
@@ -3348,7 +3065,6 @@ def process_ai_question(message):
     
     bot.send_message(user_id, "Хочешь задать еще вопрос?", reply_markup=keyboard)
     
-    # Очищаем состояние
     if user_id in user_states:
         del user_states[user_id]
 
@@ -3367,20 +3083,9 @@ def show_statistics_handler(message):
     # Считаем выполненные задачи сегодня
     completed_today = len([t for t in today_tasks if t.get("completed", False)])
     
-    # Считаем задачи с напоминаниями
-    tasks_with_reminders = len([t for t in today_tasks if t.get("time") and not t.get("completed", False)])
-    
-    # Получаем текущее время пользователя
-    user_time = timezone_detector.get_user_time(user_id)
-    tz_info = timezone_detector.get_user_timezone(user_id)
-    offset = tz_info["offset"] if tz_info else 3
-    
     # Формируем текст статистики
     text = f"""
 📊 *Статистика и прогресс*
-
-🕐 *Ваше местное время:* {user_time.strftime('%H:%M:%S')}
-🌍 *Ваш часовой пояс:* UTC{offset:+d}
 
 📈 *Общая статистика:*
 • Всего задач: {stats['total_tasks_current']}
@@ -3392,7 +3097,6 @@ def show_statistics_handler(message):
 • Задач на сегодня: {stats['today_tasks']}
 • Выполнено сегодня: {completed_today}
 • Осталось выполнить: {stats['today_tasks'] - completed_today}
-• Задач с напоминаниями: {tasks_with_reminders}
 
 📆 *На неделю:*
 • Задач на неделю: {stats['week_tasks']}
@@ -3411,9 +3115,6 @@ def show_statistics_handler(message):
     if stats['today_tasks'] == 0:
         text += "\n💡 *Совет:* Добавь задачи на сегодня для лучшего планирования!"
     
-    if tasks_with_reminders > 0:
-        text += f"\n🔔 *Напоминания:* У тебя {tasks_with_reminders} задач с уведомлениями сегодня!"
-    
     # Кнопки для управления задачами
     keyboard = types.InlineKeyboardMarkup(row_width=2)
     keyboard.add(
@@ -3422,7 +3123,6 @@ def show_statistics_handler(message):
     )
     keyboard.add(
         types.InlineKeyboardButton("📅 Задачи на сегодня", callback_data="show_today"),
-        types.InlineKeyboardButton("🕐 Проверить время", callback_data="check_user_time"),
         types.InlineKeyboardButton("🔙 В меню", callback_data="back_to_main")
     )
     
@@ -3437,26 +3137,23 @@ def callback_handler(call):
     message_id = call.message.message_id
     
     try:
-        # Добавление задачи - выбор даты
         if call.data.startswith("date_"):
             date_type = call.data.replace("date_", "")
             response = process_task_date(user_id, date_type)
             
             if response:
-                bot.edit_message_text(response, user_id, message_id, parse_mode='Markdown')
+                bot.edit_message_text(response, user_id, message_id, parse_mode='HTML')
             elif date_type == "custom":
-                # Запрос на ввод даты
                 msg = bot.send_message(user_id, 
                                       "📅 *Введи дату в формате ДД.ММ.ГГГГ*\n"
                                       "Например: 15.05.2026\n\n"
-                                      "💡 *Дата указывается в вашем местном времени!*",
+                                      "Или выбери из предложенных дат:",
                                       parse_mode='Markdown')
                 user_states[user_id]['state'] = 'waiting_custom_date'
                 bot.register_next_step_handler(msg, process_custom_date)
             else:
                 bot.answer_callback_query(call.id, "Продолжаем настройку задачи...")
         
-        # Добавление задачи - выбор времени
         elif call.data.startswith("time_"):
             time_val = call.data.replace("time_", "")
             
@@ -3469,7 +3166,6 @@ def callback_handler(call):
                 else:
                     time_match = time_val
                 
-                # Определяем предмет
                 subject = None
                 subject_keywords = {
                     "математик": "Математика",
@@ -3486,36 +3182,42 @@ def callback_handler(call):
                         subject = subj
                         break
                 
-                # Добавляем задачу
                 task = task_manager.add_task(user_id, task_text, task_date, time_match, subject)
                 
-                # Формируем ответ
                 time_info = f" в {time_match}" if time_match else ""
                 subject_info = f" ({subject})" if subject else ""
+                
+                event_timestamp = None
+                if time_match:
+                    event_datetime = datetime.strptime(f"{task_date} {time_match}", "%Y-%m-%d %H:%M")
+                    event_timestamp = int(event_datetime.timestamp())
+                
+                if event_timestamp:
+                    time_display = f'<tg-time unix="{event_timestamp}" format="wDT"></tg-time>'
+                else:
+                    time_display = task_date
                 
                 response = f"""
 ✅ *Задача успешно добавлена!*
 
 📝 *Задача:* {task_text}{subject_info}
-📅 *Дата:* {task_date}{time_info}
+📅 *Дата/время:* {time_display}
 🆔 *ID задачи:* {task['id']}
 
 ⏰ *Напоминание:* 
-За 1 час до начала я пришлю тебе уведомление в твоем местном времени! 🔔
+За 1 час до начала я пришлю тебе уведомление! Telegram покажет точное время в твоем часовом поясе. 🔔
 
 💡 *Совет:* Используй технику Помодоро для выполнения задачи!
 🎯 *Статистика:* Всего задач: {len(task_manager.tasks.get(str(user_id), []))}
 """
                 
-                bot.edit_message_text(response, user_id, message_id, parse_mode='Markdown')
+                bot.edit_message_text(response, user_id, message_id, parse_mode='HTML')
                 
-                # Очищаем состояние пользователя
                 if user_id in user_states:
                     del user_states[user_id]
             else:
                 bot.answer_callback_query(call.id, "Ошибка: данные задачи не найдены")
         
-        # Показать задачи
         elif call.data.startswith("show_"):
             period = call.data.replace("show_", "")
             tasks_text = show_tasks(user_id, period)
@@ -3526,7 +3228,6 @@ def callback_handler(call):
             bot.edit_message_text(tasks_text, user_id, message_id, 
                                  parse_mode='Markdown', reply_markup=keyboard)
         
-        # Удаление задач - начало
         elif call.data == "delete_task_start":
             tasks = task_manager.get_tasks_for_today(user_id)
             if not tasks:
@@ -3534,7 +3235,7 @@ def callback_handler(call):
                 return
             
             keyboard = types.InlineKeyboardMarkup(row_width=2)
-            for task in tasks[:10]:  # Показываем первые 10 задач
+            for task in tasks[:10]:
                 btn_text = f"🗑️ {task['text'][:20]}..." if len(task['text']) > 20 else f"🗑️ {task['text']}"
                 keyboard.add(types.InlineKeyboardButton(btn_text, callback_data=f"delete_{task['id']}"))
             
@@ -3543,23 +3244,19 @@ def callback_handler(call):
             bot.edit_message_text("🗑️ *Выбери задачу для удаления:*", 
                                  user_id, message_id, parse_mode='Markdown', reply_markup=keyboard)
         
-        # Удаление задачи
         elif call.data.startswith("delete_"):
             task_id = int(call.data.replace("delete_", ""))
             success = task_manager.delete_task(user_id, task_id)
             
             if success:
                 bot.answer_callback_query(call.id, "✅ Задача успешно удалена!")
-                # Показываем обновленный список задач
                 show_tasks_menu(call.message)
                 bot.delete_message(user_id, message_id)
             else:
                 bot.answer_callback_query(call.id, "❌ Ошибка при удалении задачи")
         
-        # Подготовка к экзаменам - выбор предмета
         elif call.data.startswith("exam_"):
             if call.data == "exam_tips":
-                # Показать общие советы по подготовке
                 tips = exam_db.get_tips("exam_preparation")
                 keyboard = types.InlineKeyboardMarkup()
                 keyboard.add(types.InlineKeyboardButton("🔙 К предметам", callback_data="back_to_subjects"))
@@ -3569,7 +3266,6 @@ def callback_handler(call):
                 text, keyboard = show_exam_info(subject_key)
                 bot.edit_message_text(text, user_id, message_id, parse_mode='Markdown', reply_markup=keyboard)
         
-        # Тип экзамена (ЕГЭ/ОГЭ)
         elif call.data.startswith("ege_") or call.data.startswith("oge_"):
             exam_type = "ege" if call.data.startswith("ege_") else "oge"
             subject_key = call.data.replace("ege_", "").replace("oge_", "")
@@ -3582,7 +3278,6 @@ def callback_handler(call):
             
             bot.edit_message_text(info, user_id, message_id, parse_mode='Markdown', reply_markup=keyboard)
         
-        # Лайфхаки и советы
         elif call.data.startswith("tip_"):
             tip_type = call.data.replace("tip_", "")
             
@@ -3601,7 +3296,6 @@ def callback_handler(call):
             elif tip_type == "all_tips":
                 text = exam_db.get_all_tips()
             else:
-                # Для других типов используем стандартные ответы
                 if tip_type == "pomodoro":
                     text = """
 🍅 *Техника Помодоро*
@@ -3655,26 +3349,6 @@ def callback_handler(call):
             
             bot.edit_message_text(text, user_id, message_id, parse_mode='Markdown', reply_markup=keyboard)
         
-        # Проверка времени пользователя
-        elif call.data == "check_user_time":
-            user_time = timezone_detector.get_user_time(user_id)
-            tz_info = timezone_detector.get_user_timezone(user_id)
-            
-            text = f"""
-🕐 *Ваше текущее время:* {user_time.strftime('%H:%M:%S')}
-📅 *Дата:* {user_time.strftime('%d.%m.%Y')}
-🌍 *Часовой пояс:* UTC{tz_info['offset']:+d} ({tz_info.get('region', tz_info['name'])})
-📍 *Метод определения:* {tz_info.get('method', 'Не определен')}
-
-💡 *Напоминания приходят за 1 час до события в вашем местном времени!*
-
-Если время определено неверно, используйте:
-• Кнопку "📍 Отправить геолокацию" для автоматического определения
-"""
-            bot.answer_callback_query(call.id)
-            bot.send_message(user_id, text, parse_mode='Markdown')
-        
-        # Навигация назад
         elif call.data == "back_to_main":
             start(call.message)
             bot.delete_message(user_id, message_id)
@@ -3699,7 +3373,6 @@ def callback_handler(call):
             ai_assistant_handler(call.message)
             bot.delete_message(user_id, message_id)
         
-        # Управление задачами - завершение
         elif call.data == "complete_task_menu":
             tasks = task_manager.get_tasks_for_today(user_id)
             if not tasks:
@@ -3707,7 +3380,7 @@ def callback_handler(call):
                 return
             
             keyboard = types.InlineKeyboardMarkup(row_width=2)
-            for task in tasks[:10]:  # Показываем первые 10 задач
+            for task in tasks[:10]:
                 if not task.get("completed", False):
                     btn_text = f"✅ {task['text'][:20]}..." if len(task['text']) > 20 else f"✅ {task['text']}"
                     keyboard.add(types.InlineKeyboardButton(btn_text, callback_data=f"complete_{task['id']}"))
@@ -3723,7 +3396,6 @@ def callback_handler(call):
             
             if success:
                 bot.answer_callback_query(call.id, "✅ Задача отмечена как выполненная!")
-                # Обновляем статистику
                 show_statistics_handler(call.message)
                 bot.delete_message(user_id, message_id)
             else:
@@ -3741,10 +3413,8 @@ def process_custom_date(message):
     user_id = message.chat.id
     
     try:
-        # Пытаемся распарсить дату
         date_str = message.text.strip()
         
-        # Пробуем разные форматы
         formats = ["%d.%m.%Y", "%d.%m.%y", "%d/%m/%Y", "%d/%m/%y", "%Y-%m-%d"]
         
         parsed_date = None
@@ -3761,18 +3431,15 @@ def process_custom_date(message):
                            "Например: 15.05.2026", parse_mode='Markdown')
             return
         
-        # Сохраняем дату и переходим к выбору времени
         if user_id in user_states and 'task_text' in user_states[user_id]:
             user_states[user_id]['task_date'] = parsed_date.strftime("%Y-%m-%d")
             user_states[user_id]['state'] = 'waiting_task_time'
             
             keyboard = types.InlineKeyboardMarkup(row_width=3)
-            # Добавляем кнопки с популярным временем
             times = ["09:00", "10:00", "11:00", "12:00", "13:00", "14:00", 
                     "15:00", "16:00", "17:00", "18:00", "19:00", "20:00"]
             buttons = [types.InlineKeyboardButton(time, callback_data=f"time_{time}") for time in times]
             
-            # Добавляем кнопки построчно
             for i in range(0, len(buttons), 3):
                 keyboard.add(*buttons[i:i+3])
             
@@ -3782,8 +3449,7 @@ def process_custom_date(message):
                             f"📅 *Дата установлена:* {parsed_date.strftime('%d.%m.%Y')}\n\n"
                             "🕐 *Теперь укажи время выполнения задачи:*\n\n"
                             "Выбери из предложенных или напиши время в формате ЧЧ:ММ\n"
-                            "Например: 14:30\n\n"
-                            "💡 *Время указывается в вашем местном часовом поясе!*",
+                            "Например: 14:30",
                             parse_mode='Markdown',
                             reply_markup=keyboard)
     except Exception as e:
@@ -3796,7 +3462,6 @@ def handle_all_messages(message):
     """Обработчик всех остальных сообщений"""
     user_id = message.chat.id
     
-    # Проверяем состояние пользователя
     if user_id in user_states:
         state = user_states[user_id].get('state')
         
@@ -3810,10 +3475,8 @@ def handle_all_messages(message):
             bot.send_message(user_id, "Используй кнопки меню или напиши /start 🤖")
     
     else:
-        # Проверяем, не является ли это вопросом для ИИ помощника
         answer = ai_study_assistant.get_answer(message.text)
         if answer:
-            # Если ответ слишком длинный, разбиваем на части
             if len(answer) > 4000:
                 parts = [answer[i:i+4000] for i in range(0, len(answer), 4000)]
                 for part in parts:
@@ -3831,18 +3494,15 @@ if __name__ == '__main__':
     print("=" * 70)
     print("🤖 Бот Тимми запускается...")
     print(f"⏰ Время запуска: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    print("🔔 Система напоминаний: ЗА 1 ЧАС ДО СОБЫТИЯ (в местном времени пользователя)")
-    print("🌍 Автоматическое определение часового пояса: ВКЛЮЧЕНО")
-    print("📍 Определение по геолокации: ДОСТУПНО")
+    print("🔔 Система напоминаний: ЗА 1 ЧАС ДО СОБЫТИЯ")
+    print("🌍 Telegram автоматически показывает время в часовом поясе пользователя")
     print("📚 Подготовка к ЕГЭ/ОГЭ: АКТУАЛЬНО НА 2026 ГОД")
     print("🧠 Продвинутый локальный ИИ помощник: ✅ АКТИВЕН")
     print("=" * 70)
     
-    # Запускаем систему напоминаний
     reminder_system.start()
     
     try:
-        # Запускаем бота с обработкой ошибок
         print("🚀 Запускаю бота...")
         bot.polling(
             none_stop=True,
@@ -3856,13 +3516,11 @@ if __name__ == '__main__':
         print("🔄 Перезапускаю через 10 секунд...")
         time.sleep(10)
         
-        # Пытаемся перезапустить
         try:
             bot.polling(none_stop=True, interval=1, timeout=30)
         except:
             print("💥 Бот завершил работу")
     
     finally:
-        # Останавливаем систему напоминаний
         reminder_system.stop()
         print("👋 Бот завершил работу")
