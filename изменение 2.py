@@ -2479,7 +2479,7 @@ class ReminderSystem:
                                 task_hour, task_min = map(int, task_time.split(':'))
                                 
                                 # Время напоминания - за 1 час до события
-                                reminder_hour = task_hour - 5
+                                reminder_hour = task_hour - 4
                                 reminder_min = task_min
                                 
                                 # Если нужно отправить напоминание сейчас
